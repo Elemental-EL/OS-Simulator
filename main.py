@@ -1,6 +1,7 @@
+import heapq
 from abc import ABC
+from collections import deque
 from enum import Enum
-from queue import Queue
 
 
 class InstructionType(Enum):
@@ -40,7 +41,54 @@ class Process:
 
     def __init__(self, pid: int):
         self.pid = pid
-        self.instructions = Queue()
+        self.instructions = deque()
+
+
+def FCFS(process_list):
+    events = []  # (type, pid, start, end) or (type, pid, X, res, t)
+    global_time = 0
+
+    ready = deque(process_list)
+    waiting = []  # min-heap of (wake_time, pid, process)
+
+    while ready or waiting:
+        if not ready:
+            wake_time, _, process = heapq.heappop(waiting)
+            # advance to when it wakes
+            global_time = max(global_time, wake_time)
+            ready.append(process)
+            # wake others at same time
+            while waiting and waiting[0][0] == wake_time:
+                _, _, p2 = heapq.heappop(waiting)
+                ready.append(p2)
+            continue
+
+        process = ready.popleft()
+        pid = process.pid
+
+        # run until hitting a sleep (block) or finish
+        while process.instructions:
+            instr = process.instructions.popleft()
+            if instr.instruction_type == InstructionType.RUN:
+                start = global_time
+                end = start + instr.duration
+                events.append(("EXECUTE", pid, start, end))
+                global_time = end
+                # continue to next instruction
+
+            elif instr.instruction_type == InstructionType.SLEEP:
+                # block: record wait, schedule wake, then stop
+                start = global_time
+                end = start + instr.duration
+                events.append(("WAIT", pid, start, end))
+                heapq.heappush(waiting, (end, pid, process))
+                break
+
+            else:
+                # skip resource instructions under FCFS (For now)
+                continue
+        # if loop exited naturally (no sleep) => done
+    return events
 
 
 n_processes: int = int(input())  # Number of processes
@@ -49,6 +97,7 @@ resource_instances = list(map(int, input().split()))  # Number of each resource 
 ps, pc = input().split()  # Page size and Page frames (Will read zero)
 
 # Create process instances
+processes = []
 for i in range(n_processes):
     process = Process(pid=i)
     instruction_count = int(input())
@@ -56,17 +105,21 @@ for i in range(n_processes):
     for j in range(instruction_count):
         instruction = input().split()
         # Distinguish the type of instruction
-        if InstructionType(instruction[0]) == InstructionType.RUN or InstructionType(
-                instruction[0]) == InstructionType.SLEEP:
+        if InstructionType(instruction[0]) in (InstructionType.RUN, InstructionType.SLEEP):
             # Enqueue The instruction for the process
-            process.instructions.put(CpuInstruction(InstructionType(instruction[0]), int(instruction[1])))
-        elif InstructionType(instruction[0]) == InstructionType.ALLOCATE or InstructionType(
-                instruction[0]) == InstructionType.FREE:
+            process.instructions.append(CpuInstruction(InstructionType(instruction[0]), int(instruction[1])))
+        elif InstructionType(instruction[0]) in (InstructionType.ALLOCATE, InstructionType.FREE):
             # Enqueue The instruction for the process
-            process.instructions.put(
+            process.instructions.append(
                 ResourceInstruction(InstructionType(instruction[0]), int(instruction[1]), int(instruction[2])))
         else:
             # Invalid instruction handling
             ValueError("Invalid instruction type")
+    processes.append(process)
 
-# TODO: Implement scheduling policy
+res = FCFS(processes)
+print(len(res))
+for typ, pid, s, e in res:
+    print(f"{typ} {pid} {s} {e}")
+
+# TODO: Implement deadlock prevention. (might add memory management as well)
