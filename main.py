@@ -74,7 +74,7 @@ class Process:
 
 
 def FCFS(process_list, mem: Memory):
-    events = []  # (type, pid, start, end) or (type, pid, X, res, t)
+    events = []  # (type, pid, start, end) or (type, pid, page, frame, t) or (type, pid, frame, t)
     global_time = 0
 
     ready = deque(process_list)
@@ -116,7 +116,10 @@ def FCFS(process_list, mem: Memory):
             elif instr.instruction_type in (InstructionType.READ, InstructionType.WRITE):
                 start = global_time
                 # Calculate the location to look for
-                page_num = instr.address // mem.page_size
+                if mem.page_size > 0:
+                    page_num = instr.address // mem.page_size
+                else:
+                    raise RuntimeError("No memory available to read or write to.")
                 page = next((page for page in mem.pages if page.page_number == page_num), None)
                 if page is not None:
                     # Hit
@@ -126,7 +129,6 @@ def FCFS(process_list, mem: Memory):
                         events.append(("WM", pid, mem.frames[page], start))
                         page.dirty = True
                     global_time = start + 20
-
                 else:
                     # Miss, load the target page into memory
                     page = Page(page_num)
