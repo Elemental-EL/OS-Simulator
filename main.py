@@ -144,12 +144,13 @@ def FCFS(process_list, mem: Memory):
                     mem.frames[page] = frame_id
                     mem.pages.append(page)
                     events.append(("DTM", pid, page_num, frame_id, start))
+                    start += 40
                     if instr.instruction_type == InstructionType.READ:
-                        events.append(("RM", pid, frame_id, start + 40))
+                        events.append(("RM", pid, frame_id, start))
                     else:
-                        events.append(("WM", pid, frame_id, start + 40))
+                        events.append(("WM", pid, frame_id, start))
                         page.dirty = True
-                    global_time = start + 60
+                    global_time = start + 20
                 # continue to next instruction
 
             else:
